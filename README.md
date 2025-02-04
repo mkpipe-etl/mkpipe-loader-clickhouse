@@ -15,7 +15,7 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 ```yaml
 ...
   connections:
-    source:
+    destination:
       host: 'XXX'
       port: 'XXX'
       database: 'XXX'

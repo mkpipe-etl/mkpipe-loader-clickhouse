@@ -26,7 +26,7 @@ class ClickhouseLoader:
         self.driver_name = 'clickhouse'
         self.driver_jdbc = 'com.clickhouse.jdbc.ClickHouseDriver'
         self.settings.driver_name = self.driver_name
-        self.jdbc_url = f'jdbc:{self.driver_name}://{self.host}:{self.port}/{self.database}?user={self.username}&password={self.password}&sessionVariables=sql_mode=ANSI_QUOTES'
+        self.jdbc_url = f'jdbc:{self.driver_name}://{self.host}:{self.port}/{self.database}?user={self.username}&password={self.password}'
 
         config = load_config()
         connection_params = config['settings']['backend']

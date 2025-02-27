@@ -1,5 +1,4 @@
 import time
-from pathlib import Path
 from urllib.parse import quote_plus
 from pyspark.sql import functions as F
 from pyspark.sql.types import TimestampType
@@ -8,6 +7,7 @@ from mkpipe.functions_db import get_db_connector
 from mkpipe.functions_spark import remove_partitioned_parquet, get_parser
 from mkpipe.utils import log_container, Logger
 from mkpipe.utils.base_class import PipeSettings
+from .upload_to_clichouse import upload_folder
 
 
 class ClickhouseLoader:
@@ -23,13 +23,13 @@ class ClickhouseLoader:
         self.password = quote_plus(str(self.connection_params['password']))
         self.database = self.connection_params['database']
 
-        self.driver_name = 'clickhouse'
-        self.driver_jdbc = 'com.clickhouse.jdbc.ClickHouseDriver'
-        self.settings.driver_name = self.driver_name
-        self.jdbc_url = f'jdbc:{self.driver_name}://{self.host}:{self.port}/{self.database}?user={self.username}&password={self.password}'
+        self.clickhouse_url = (
+            f'http://{self.host}:{self.port}'
+            f'/?database={self.database}&user={self.username}&password={self.password}'
+        )
 
-        config = load_config()
-        connection_params = config['settings']['backend']
+        config_data = load_config()
+        connection_params = config_data['settings']['backend']
         db_type = connection_params['database_type']
         self.backend = get_db_connector(db_type)(connection_params)
 
@@ -47,8 +47,7 @@ class ClickhouseLoader:
             start_time = time.time()
             name = data['table_name']
 
-            #write_mode = data.get('write_mode', None)
-            write_mode = 'append'
+            write_mode = data.get('write_mode', None)
             file_type = data.get('file_type', None)
             last_point_value = data.get('last_point_value', None)
             iterate_column_type = data.get('iterate_column_type', None)
@@ -86,16 +85,12 @@ class ClickhouseLoader:
             )
             logger.info(message)
 
-            (
-                df.write.format('jdbc')
-                .mode(
-                    write_mode
-                )  # Use write_mode for the first iteration, 'append' for others
-                .option('url', self.jdbc_url)
-                .option('dbtable', name)
-                .option('driver', self.driver_jdbc)
-                .option('batchsize', batchsize)
-                .save()
+            clickhouse_temp_df_path = str(data['path'] + '/clickhouse')
+            df.write.parquet(clickhouse_temp_df_path, mode='overwrite')
+            upload_folder(
+                folder_path=clickhouse_temp_df_path,
+                table_name=name,
+                clickhouse_url=self.clickhouse_url,
             )
 
             # Update last point in the mkpipe_manifest table if applicable
@@ -113,6 +108,7 @@ class ClickhouseLoader:
 
             # remove the parquet to reduce the storage
             remove_partitioned_parquet(data['path'])
+            remove_partitioned_parquet(clickhouse_temp_df_path)
 
             run_time = time.time() - start_time
             message = dict(table_name=name, status='success', run_time=run_time)

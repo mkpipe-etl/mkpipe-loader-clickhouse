@@ -7,7 +7,7 @@ from mkpipe.functions_db import get_db_connector
 from mkpipe.functions_spark import remove_partitioned_parquet, get_parser
 from mkpipe.utils import log_container, Logger
 from mkpipe.utils.base_class import PipeSettings
-from .upload_to_clichouse import upload_folder
+from .upload_to_clickhouse import upload_folder
 
 
 class ClickhouseLoader:

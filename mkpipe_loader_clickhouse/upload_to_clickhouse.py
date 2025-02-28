@@ -1,8 +1,10 @@
 import os
 import requests
+from mkpipe.utils import log_container, Logger
 
 
 def upload_folder(folder_path, table_name, clickhouse_url):
+    logger = Logger(__file__)
     try:
         # Walk through the directory
         for root, dirs, files in os.walk(folder_path):
@@ -17,22 +19,40 @@ def upload_folder(folder_path, table_name, clickhouse_url):
                         response = requests.post(url, data=f)
 
                         if response.status_code == 200:
-                            print(f'Successfully uploaded {file_path}')
-                        else:
-                            print(
-                                f'Failed to upload {file_path}. Status Code: {response.status_code}'
+                            message = dict(
+                                table_name=table_name,
+                                status='loading',
+                                message=f'Successfully uploaded {file_path}',
                             )
-                            print(f'Response: {response.text}')
+                            logger.info(message)
+                        else:
+                            message = dict(
+                                table_name=table_name,
+                                status='loading',
+                                message=f'Failed to upload {file_path}. Status Code: {response.status_code} Response: {response.text}',
+                            )
+                            logger.error(message)
 
-        message = (
-            f"All files in '{folder_path}' have been uploaded to table '{table_name}'."
+        message = dict(
+            table_name=table_name,
+            status='loading',
+            message=f"All files in '{folder_path}' have been uploaded to table '{table_name}'.",
         )
+        logger.info(message)
 
     except FileNotFoundError:
-        print(f'The folder {folder_path} was not found.')
+        message = dict(
+            table_name=table_name,
+            status='loading',
+            message=f'The folder {folder_path} was not found.',
+        )
+        logger.error(message)
         raise
     except Exception as e:
-        print(f'An error occurred: {e}')
+        message = dict(
+            table_name=table_name, status='loading', message=f'An error occurred: {e}'
+        )
+        logger.error(message)
         raise
 
     return message

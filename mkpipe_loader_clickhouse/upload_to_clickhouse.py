@@ -17,10 +17,10 @@ def upload_folder(folder_path, table_name, clickhouse_url):
                         response = requests.post(url, data=f)
 
                         if response.status_code == 200:
-                            print(f'Successfully uploaded {parquet_file_path}')
+                            print(f'Successfully uploaded {file_path}')
                         else:
                             print(
-                                f'Failed to upload {parquet_file_path}. Status Code: {response.status_code}'
+                                f'Failed to upload {file_path}. Status Code: {response.status_code}'
                             )
                             print(f'Response: {response.text}')
 

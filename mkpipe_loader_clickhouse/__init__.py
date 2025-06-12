@@ -4,6 +4,7 @@ from mkpipe.utils import log_container, Logger
 from .upload_to_clickhouse import upload_folder
 from mkpipe.functions_spark import BaseLoader
 
+
 class ClickhouseLoader(BaseLoader):
     def __init__(self, config, settings):
         super().__init__(
@@ -12,6 +13,9 @@ class ClickhouseLoader(BaseLoader):
             driver_name='clickhouse',
             driver_jdbc='com.clickhouse.jdbc.ClickHouseDriver',
         )
+
+    def build_jdbc_url(self):
+        return f'http://{self.host}:{self.port}/?database={self.database}&user={self.username}&password={self.password}'
 
     @log_container(__file__)
     def load(self, data, elt_start_time):
@@ -62,7 +66,7 @@ class ClickhouseLoader(BaseLoader):
             upload_folder(
                 folder_path=clickhouse_temp_df_path,
                 table_name=name,
-                clickhouse_url=self.clickhouse_url,
+                clickhouse_url=self.jdbc_url,
             )
 
             # Update last point in the mkpipe_manifest table if applicable

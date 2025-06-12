@@ -1,44 +1,17 @@
 import time
-from urllib.parse import quote_plus
-from pyspark.sql import functions as F
-from pyspark.sql.types import TimestampType
-from mkpipe.config import load_config
-from mkpipe.functions_db import get_db_connector
 from mkpipe.functions_spark import remove_partitioned_parquet, get_parser
 from mkpipe.utils import log_container, Logger
-from mkpipe.utils.base_class import PipeSettings
 from .upload_to_clickhouse import upload_folder
+from mkpipe.functions_spark import BaseLoader
 
-
-class ClickhouseLoader:
+class ClickhouseLoader(BaseLoader):
     def __init__(self, config, settings):
-        if isinstance(settings, dict):
-            self.settings = PipeSettings(**settings)
-        else:
-            self.settings = settings
-        self.connection_params = config['connection_params']
-        self.host = self.connection_params['host']
-        self.port = self.connection_params['port']
-        self.username = self.connection_params['user']
-        self.password = quote_plus(str(self.connection_params['password']))
-        self.database = self.connection_params['database']
-
-        self.clickhouse_url = (
-            f'http://{self.host}:{self.port}'
-            f'/?database={self.database}&user={self.username}&password={self.password}'
+        super().__init__(
+            config,
+            settings,
+            driver_name='clickhouse',
+            driver_jdbc='com.clickhouse.jdbc.ClickHouseDriver',
         )
-
-        config_data = load_config()
-        connection_params = config_data['settings']['backend']
-        db_type = connection_params['database_type']
-        self.backend = get_db_connector(db_type)(connection_params)
-
-    def add_custom_columns(self, df, elt_start_time):
-        if 'etl_time' in df.columns:
-            df = df.drop('etl_time')
-
-        df = df.withColumn('etl_time', F.lit(elt_start_time).cast(TimestampType()))
-        return df
 
     @log_container(__file__)
     def load(self, data, elt_start_time):
@@ -52,7 +25,6 @@ class ClickhouseLoader:
             last_point_value = data.get('last_point_value', None)
             iterate_column_type = data.get('iterate_column_type', None)
             replication_method = data.get('replication_method', 'full')
-            batchsize = data.get('fetchsize', 100_000)
             pass_on_error = data.get('pass_on_error', None)
 
             if not file_type:

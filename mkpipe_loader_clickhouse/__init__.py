@@ -1,4 +1,5 @@
 import time
+import gc
 from mkpipe.functions_spark import remove_partitioned_parquet, get_parser
 from mkpipe.utils import log_container, Logger
 from .upload_to_clickhouse import upload_folder
@@ -88,6 +89,8 @@ class ClickhouseLoader(BaseLoader):
 
             run_time = time.time() - start_time
             message = dict(table_name=name, status='success', run_time=run_time)
+            df.unpersist()
+            gc.collect()
             logger.info(message)
 
         except Exception as e:

@@ -35,7 +35,8 @@ class ClickhouseLoader(BaseLoader):
             df = data['df']
 
             self.backend.manifest_table_update(
-                name=name,
+                pipeline_name=self.pipeline_name,
+                table_name=name,
                 value=None,
                 value_type=None,
                 status='loading',
@@ -45,7 +46,8 @@ class ClickhouseLoader(BaseLoader):
 
             if not df:
                 self.backend.manifest_table_update(
-                    name=name,
+                    pipeline_name=self.pipeline_name,
+                    table_name=name,
                     value=last_point_value,
                     value_type=iterate_column_type,
                     status='completed',
@@ -74,7 +76,8 @@ class ClickhouseLoader(BaseLoader):
 
             # Update last point in the mkpipe_manifest table if applicable
             self.backend.manifest_table_update(
-                name=name,
+                pipeline_name=self.pipeline_name,
+                table_name=name,
                 value=last_point_value,
                 value_type=iterate_column_type,
                 status='completed',
@@ -104,7 +107,8 @@ class ClickhouseLoader(BaseLoader):
             )
 
             self.backend.manifest_table_update(
-                name=name,
+                pipeline_name=self.pipeline_name,
+                table_name=name,
                 value=None,  # Last point remains unchanged
                 value_type=None,  # Type remains unchanged
                 status='failed',

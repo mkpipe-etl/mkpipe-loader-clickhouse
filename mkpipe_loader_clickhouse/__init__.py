@@ -1,5 +1,7 @@
 from mkpipe.spark import JdbcLoader
 
+JAR_PACKAGES = ['com.clickhouse:clickhouse-jdbc:0.8.0']
+
 
 class ClickhouseLoader(JdbcLoader, variant='clickhouse'):
     driver_name = 'clickhouse'

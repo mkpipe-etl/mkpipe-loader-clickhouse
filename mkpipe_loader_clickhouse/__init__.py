@@ -7,7 +7,7 @@ from mkpipe.models import ConnectionConfig, ExtractResult, TableConfig
 from mkpipe.utils import get_logger
 
 JAR_PACKAGES = [
-    'com.clickhouse.spark:clickhouse-spark-runtime-3.5_2.13:0.8.0',
+    'com.clickhouse.spark:clickhouse-spark-runtime-4.0_2.13:0.8.1',
     'com.clickhouse:clickhouse-http-client:0.7.2',
     'org.apache.httpcomponents.client5:httpclient5:5.3.1',
 ]

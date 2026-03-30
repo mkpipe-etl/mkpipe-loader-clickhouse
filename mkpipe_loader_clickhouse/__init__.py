@@ -53,7 +53,7 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
             {'table': target_name, 'status': 'loading', 'write_mode': write_mode}
         )
 
-        opts = {**self._base_options(), 'dbtable': target_name}
+        opts = {**self._base_options(), 'table': f'{self.database}.{target_name}'}
         writer = df.write.format('clickhouse').mode(write_mode)
         for k, v in opts.items():
             writer = writer.option(k, v)

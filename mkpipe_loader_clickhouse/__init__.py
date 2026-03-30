@@ -24,6 +24,29 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
         self.password = str(connection.password or '')
         self.database = connection.database
 
+    def _execute_query(self, query: str) -> None:
+        """Execute a query against ClickHouse via HTTP."""
+        import urllib.request
+
+        url = f'http://{self.host}:{self.port}'
+        req = urllib.request.Request(
+            url,
+            data=query.encode('utf-8'),
+            method='POST',
+        )
+        req.add_header('X-ClickHouse-User', self.username)
+        req.add_header('X-ClickHouse-Key', self.password)
+        with urllib.request.urlopen(req) as resp:
+            resp.read()
+
+    def _drop_if_exists(self, full_table: str) -> None:
+        """Drop a ClickHouse table if it exists."""
+        try:
+            self._execute_query(f'DROP TABLE IF EXISTS {full_table}')
+            logger.info({'table': full_table, 'status': 'dropped'})
+        except Exception as e:
+            logger.debug({'table': full_table, 'drop_skipped': str(e)})
+
     def _base_options(self) -> dict:
         return {
             'host': self.host,
@@ -53,16 +76,25 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
             {'table': target_name, 'status': 'loading', 'write_mode': write_mode}
         )
 
-        opts = {**self._base_options(), 'table': f'{self.database}.{target_name}'}
+        full_table = f'{self.database}.{target_name}'
+        opts = {**self._base_options(), 'table': full_table}
 
         # ClickHouse MergeTree requires ORDER BY when creating new tables.
-        # Use dedup_columns if defined, otherwise tuple() (no ordering).
+        # Use dedup_columns if defined, otherwise fall back to first column.
         if table.dedup_columns:
             opts['order_by'] = ', '.join(table.dedup_columns)
         else:
-            opts['order_by'] = 'tuple()'
+            opts['order_by'] = df.columns[0]
 
-        writer = df.write.format('clickhouse').mode(write_mode)
+        # Spark ClickHouse connector auto-creates tables only in append mode.
+        # For overwrite: drop existing table, then append (re-creates with fresh schema).
+        if write_mode == 'overwrite':
+            self._drop_if_exists(full_table)
+            spark_mode = 'append'
+        else:
+            spark_mode = write_mode
+
+        writer = df.write.format('clickhouse').mode(spark_mode)
         for k, v in opts.items():
             writer = writer.option(k, v)
         writer.save()

@@ -54,6 +54,14 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
         )
 
         opts = {**self._base_options(), 'table': f'{self.database}.{target_name}'}
+
+        # ClickHouse MergeTree requires ORDER BY when creating new tables.
+        # Use dedup_columns if defined, otherwise tuple() (no ordering).
+        if table.dedup_columns:
+            opts['order_by'] = ', '.join(table.dedup_columns)
+        else:
+            opts['order_by'] = 'tuple()'
+
         writer = df.write.format('clickhouse').mode(write_mode)
         for k, v in opts.items():
             writer = writer.option(k, v)

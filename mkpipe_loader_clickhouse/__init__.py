@@ -136,7 +136,7 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
         self._create_table(full_table, df, order_by)
 
         # Always append -- table is guaranteed to exist at this point.
-        opts = {**self._base_options(), 'table': full_table}
+        opts = {**self._base_options(), 'table': full_table, 'order_by': order_by}
         writer = df.write.format('clickhouse').mode('append')
         for k, v in opts.items():
             writer = writer.option(k, v)

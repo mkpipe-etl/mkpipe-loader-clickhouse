@@ -1,9 +1,12 @@
 import gc
 from datetime import datetime
+from typing import List
 
-from mkpipe.models import ConnectionConfig, ExtractResult, TableConfig
+from mkpipe.exceptions import ConfigError, LoadError
+from mkpipe.models import ConnectionConfig, ExtractResult, TableConfig, WriteStrategy
 from mkpipe.spark.base import BaseLoader
 from mkpipe.spark.columns import add_etl_columns
+from mkpipe.strategy import resolve_write_strategy
 from mkpipe.utils import get_logger
 
 JAR_PACKAGES = [
@@ -100,9 +103,36 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
             'database': self.database,
         }
 
+    def _create_replacing_merge_tree(
+        self, full_table: str, df, order_by: str, version_col: str = 'etl_time',
+    ) -> None:
+        """Create a ClickHouse ReplacingMergeTree table for upsert semantics."""
+        columns = []
+        for field in df.schema.fields:
+            ch_type = _spark_type_to_ch(field.dataType.simpleString())
+            nullable = 'Nullable({})'.format(ch_type) if field.nullable else ch_type
+            columns.append(f'    `{field.name}` {nullable}')
+
+        cols_sql = ',\n'.join(columns)
+        ddl = (
+            f'CREATE TABLE IF NOT EXISTS {full_table}\n'
+            f'(\n{cols_sql}\n)\n'
+            f'ENGINE = ReplacingMergeTree({version_col})\n'
+            f'ORDER BY ({order_by})\n'
+            f'SETTINGS allow_nullable_key = 1'
+        )
+        self._execute_query(ddl)
+        logger.info({'table': full_table, 'status': 'created', 'engine': 'ReplacingMergeTree'})
+
+    def _write_to_ch(self, df, full_table: str, order_by: str) -> None:
+        opts = {**self._base_options(), 'table': full_table, 'order_by': order_by}
+        writer = df.write.format('clickhouse').mode('append')
+        for k, v in opts.items():
+            writer = writer.option(k, v)
+        writer.save()
+
     def load(self, table: TableConfig, data: ExtractResult, spark) -> None:
         target_name = table.target_name
-        write_mode = data.write_mode
         df = data.df
 
         if df is None:
@@ -116,31 +146,47 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
         if table.write_partitions:
             df = df.coalesce(table.write_partitions)
 
+        strategy = resolve_write_strategy(table, data)
+
         logger.info(
-            {'table': target_name, 'status': 'loading', 'write_mode': write_mode}
+            {'table': target_name, 'status': 'loading', 'write_strategy': strategy.value}
         )
 
         full_table = f'{self.database}.{target_name}'
 
         # Determine ORDER BY key
-        if table.dedup_columns:
+        if table.write_key:
+            order_by = ', '.join(table.write_key)
+        elif table.dedup_columns:
             order_by = ', '.join(table.dedup_columns)
         else:
             order_by = df.columns[0]
 
-        # For overwrite: drop + create fresh table with new schema.
-        # For append: create if not exists (idempotent).
-        if write_mode == 'overwrite':
-            self._drop_if_exists(full_table)
-
-        self._create_table(full_table, df, order_by)
-
-        # Always append -- table is guaranteed to exist at this point.
-        opts = {**self._base_options(), 'table': full_table, 'order_by': order_by}
-        writer = df.write.format('clickhouse').mode('append')
-        for k, v in opts.items():
-            writer = writer.option(k, v)
-        writer.save()
+        try:
+            match strategy:
+                case WriteStrategy.REPLACE:
+                    self._drop_if_exists(full_table)
+                    self._create_table(full_table, df, order_by)
+                    self._write_to_ch(df, full_table, order_by)
+                case WriteStrategy.APPEND:
+                    self._create_table(full_table, df, order_by)
+                    self._write_to_ch(df, full_table, order_by)
+                case WriteStrategy.UPSERT:
+                    if not table.write_key:
+                        raise ConfigError(
+                            f"write_strategy 'upsert' requires write_key for table '{target_name}'"
+                        )
+                    self._drop_if_exists(full_table)
+                    self._create_replacing_merge_tree(full_table, df, order_by)
+                    self._write_to_ch(df, full_table, order_by)
+                case _:
+                    raise ConfigError(
+                        f"ClickHouse loader does not support write_strategy: {strategy.value}"
+                    )
+        except (ConfigError, LoadError):
+            raise
+        except Exception as e:
+            raise LoadError(f"Failed to write '{target_name}': {e}") from e
 
         df.unpersist()
         gc.collect()

@@ -104,8 +104,10 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
         }
 
     def _create_replacing_merge_tree(
-        self, full_table: str, df, order_by: str, version_col: str = 'etl_time',
+        self, full_table: str, df, order_by: str, version_col: str | None = None,
     ) -> None:
+        if version_col is None:
+            version_col = self.ingested_at_column
         """Create a ClickHouse ReplacingMergeTree table for upsert semantics."""
         columns = []
         for field in df.schema.fields:
@@ -141,7 +143,7 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
             )
             return
 
-        df = add_etl_columns(df, datetime.now(), dedup_columns=table.dedup_columns)
+        df = add_etl_columns(df, datetime.now(), dedup_columns=table.dedup_columns, ingested_at_column=self.ingested_at_column)
 
         if table.write_partitions:
             df = df.coalesce(table.write_partitions)

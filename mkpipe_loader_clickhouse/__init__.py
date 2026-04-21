@@ -143,7 +143,12 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
             )
             return
 
-        df = add_etl_columns(df, datetime.now(), dedup_columns=table.dedup_columns, ingested_at_column=self.ingested_at_column)
+        df = add_etl_columns(
+            df, datetime.now(),
+            dedup_columns=table.dedup_columns,
+            ingested_at_column=self.ingested_at_column,
+            ingestion_id_column=self.ingestion_id_column,
+        )
 
         if table.write_partitions:
             df = df.coalesce(table.write_partitions)

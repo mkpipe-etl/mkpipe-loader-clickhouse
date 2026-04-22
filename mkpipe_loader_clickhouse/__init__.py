@@ -5,7 +5,7 @@ from typing import List
 from mkpipe.exceptions import ConfigError, LoadError
 from mkpipe.models import ConnectionConfig, ExtractResult, TableConfig, WriteStrategy
 from mkpipe.spark.base import BaseLoader
-from mkpipe.spark.columns import add_etl_columns
+from mkpipe.spark.columns import add_etl_columns, normalize_column_names
 from mkpipe.strategy import resolve_write_strategy
 from mkpipe.utils import get_logger
 
@@ -149,6 +149,7 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
             ingested_at_column=self.ingested_at_column,
             ingestion_id_column=self.ingestion_id_column,
         )
+        df = normalize_column_names(df, self.column_name_case)
 
         if table.write_partitions:
             df = df.coalesce(table.write_partitions)

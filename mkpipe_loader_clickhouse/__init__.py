@@ -173,7 +173,8 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
         try:
             match strategy:
                 case WriteStrategy.REPLACE:
-                    self._drop_if_exists(full_table)
+                    if self.if_exists != 'append':
+                        self._drop_if_exists(full_table)
                     self._create_table(full_table, df, order_by)
                     self._write_to_ch(df, full_table, order_by)
                 case WriteStrategy.APPEND:

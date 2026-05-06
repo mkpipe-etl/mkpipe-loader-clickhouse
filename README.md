@@ -57,7 +57,7 @@ Control how data is written to ClickHouse:
 | Strategy | ClickHouse Behavior |
 |---|---|
 | `append` | Insert via ClickHouse Spark connector (default for incremental) |
-| `replace` | Drop and recreate table, then insert (default for full) |
+| `replace` | Drop and recreate table, then insert (default for full). Use `if_exists: append` to preserve existing table |
 | `upsert` | Creates table with `ReplacingMergeTree` engine using `write_key` as `ORDER BY`. ClickHouse deduplicates rows with the same key on background merges. |
 
 > **Note:** ClickHouse does not support SQL `MERGE` statements. Upsert semantics are achieved via `ReplacingMergeTree`, which deduplicates asynchronously during compaction. Use `FINAL` in queries to get deduplicated results.
@@ -99,7 +99,8 @@ ClickHouse loader inherits from `JdbcLoader`. Two parameters control write perfo
 | `batchsize` | int | `10000` | Rows per JDBC batch insert |
 | `write_partitions` | int | — | Coalesce DataFrame to N partitions before writing |
 | `write_strategy` | string | — | `append`, `replace`, `upsert` |
-| `write_key` | list | — | Key columns for upsert (used as ReplacingMergeTree ORDER BY) |
+| `write_key` | list | — | Key columns for upsert/merge, used as `ORDER BY` in ReplacingMergeTree |
+| `if_exists` | string | — | `replace` (drop+create) or `append` (preserve table). Inherits from settings |
 | `dedup_columns` | list | — | Columns used for `mkpipe_id` hash deduplication |
 | `tags` | list | `[]` | Tags for selective pipeline execution |
 | `pass_on_error` | bool | `false` | Skip table on error instead of failing |

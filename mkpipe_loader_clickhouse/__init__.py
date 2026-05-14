@@ -173,9 +173,13 @@ class ClickhouseLoader(BaseLoader, variant='clickhouse'):
         try:
             match strategy:
                 case WriteStrategy.REPLACE:
-                    if self.if_exists != 'append':
+                    if self.if_exists == 'append':
+                        self._create_table(full_table, df, order_by)
+                        self._execute_query(f'TRUNCATE TABLE {full_table}')
+                        logger.info({'table': full_table, 'status': 'truncated'})
+                    else:
                         self._drop_if_exists(full_table)
-                    self._create_table(full_table, df, order_by)
+                        self._create_table(full_table, df, order_by)
                     self._write_to_ch(df, full_table, order_by)
                 case WriteStrategy.APPEND:
                     self._create_table(full_table, df, order_by)
